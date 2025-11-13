@@ -2,6 +2,8 @@
 -- Create Database and Schemas
 -- Purpose: Drop and recreate the DataWarehouse database and create bronze/silver/gold schemas.
 
+-- Warning: Running this script again when the database is already initiated will cause data loss.
+
 USE master;
 Go
 
