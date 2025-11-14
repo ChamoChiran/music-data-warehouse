@@ -11,16 +11,16 @@ Usage:
 import requests
 import typer
 import pandas as pd
+import csv
 from datetime import datetime
-from ..config import API_KEY, BASE_URL, COUNTRIES
+from ..config import API_KEY, BASE_URL, COUNTRIES, BRONZE_OUT
+from ..utils import load_to_bronze
 
 
 app = typer.Typer()
 
 
-# ---------------------------------------------------------
-# Fetch API
-# ---------------------------------------------------------
+# Fetch from API
 def fetch_geo_data(country: str, chart_type: str, limit: int, page: int):
     method = f"geo.gettop{chart_type}"
 
@@ -38,9 +38,7 @@ def fetch_geo_data(country: str, chart_type: str, limit: int, page: int):
     return response.json()
 
 
-# ---------------------------------------------------------
-# Extract DataFrame (Artists)
-# ---------------------------------------------------------
+# Extract Dataframe Artists
 def extract_artists_to_df(data: dict, country: str) -> pd.DataFrame:
     artists = data.get("topartists", {}).get("artist", [])
 
@@ -51,11 +49,12 @@ def extract_artists_to_df(data: dict, country: str) -> pd.DataFrame:
 
     df.rename(
         columns={
-            "@attr.rank": "rank",
+            "@attr.rank": "artist_rank",  # Changed
             "name": "artist_name",
             "mbid": "artist_mbid",
             "listeners": "artist_listeners",
             "url": "artist_url",
+            "streamable": "artist_streamable",  # Added
         },
         inplace=True
     )
@@ -63,17 +62,16 @@ def extract_artists_to_df(data: dict, country: str) -> pd.DataFrame:
     df = df.drop(columns=["image"], errors="ignore")
 
     df["chart_country"] = country
-    df["load_time"] = datetime.now()
+    df["chart_date"] = datetime.now()  # Changed from load_time
 
-    df["rank"] = df["rank"].astype(int)
+    df["artist_rank"] = df["artist_rank"].astype(int)
     df["artist_listeners"] = df["artist_listeners"].astype(int)
 
     return df
 
 
-# ---------------------------------------------------------
-# Extract DataFrame (Tracks)
-# ---------------------------------------------------------
+
+# Extract Dataframe Tracks
 def extract_tracks_to_df(data: dict, country: str) -> pd.DataFrame:
     tracks = data.get("tracks", {}).get("track", [])
 
@@ -107,6 +105,7 @@ def extract_tracks_to_df(data: dict, country: str) -> pd.DataFrame:
 
     return df
 
+# Fetch for multiple countries (both artists and tracks)
 def fetch_multiple_countries(chart_type: str, limit: int, page: int) -> pd.DataFrame:
     """
     Fetch charts for all countries and return one combined dataframe.
@@ -138,11 +137,23 @@ def fetch_multiple_countries(chart_type: str, limit: int, page: int) -> pd.DataF
     if not all_countries:
         return pd.DataFrame()
 
-    return pd.concat(all_countries, ignore_index=True)
+    df = pd.concat(all_countries, ignore_index=True)
+    date = datetime.now().strftime("%Y-%m-%d")
+    # Save CSV
+    df.to_csv(
+        BRONZE_OUT / f"geo_{chart_type}_{date}.csv",
+        index=False,
+        encoding="utf-8"
+    )
 
-# ---------------------------------------------------------
-# CLI
-# ---------------------------------------------------------
+    # Load to SQL
+    table_name = f"lfm_top_{chart_type}"
+    load_to_bronze(df, table_name)
+
+    return df
+
+
+# CLI entry point
 @app.command()
 def main(
     country: str = typer.Option(None, "--country", "-c"),
@@ -184,6 +195,8 @@ def main(
     typer.echo("\n--- First 5 rows ---")
     print(df.head())
 
+    table_name = "geo_artists" if chart_type == "artists" else "geo_tracks"
+    load_to_bronze(df, table_name)
 
 if __name__ == "__main__":
     typer.run(main)
