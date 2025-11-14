@@ -1,3 +1,12 @@
+-- Bronze Layer DDL for Last.fm Data
+
+-- Description: Creates bronze (raw) tables for storing Last.fm API data
+-- Tables: lfm_top_tracks, lfm_top_artists
+
+-- Table: bronze.lfm_top_tracks
+-- Description: Stores raw top tracks data from Last.fm API by country and date
+
+
 IF OBJECT_ID ('bronze.lfm_top_tracks') IS NOT NULL
 	DROP TABLE bronze.lfm_top_tracks;
 
@@ -18,6 +27,9 @@ CREATE TABLE bronze.lfm_top_tracks(
 	
 	rec_load_date   DATETIME2 DEFAULT SYSDATETIME(),
 );
+
+-- Table: bronze.lfm_top_artists
+-- Description: Stores raw top artists data from Last.fm API by country and date
 
 IF OBJECT_ID ('bronze.lfm_top_artists') IS NOT NULL
 	DROP TABLE bronze.lfm_top_artists;
